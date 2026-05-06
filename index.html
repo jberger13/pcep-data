@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PCEP Exam — Class Performance</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f172a; --panel: #1e293b; --ink: #e2e8f0; --muted: #94a3b8;
+    --accent: #38bdf8; --good: #22c55e; --mid: #eab308; --bad: #ef4444;
+    --border: #334155;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         background: var(--bg); color: var(--ink); padding: 24px; }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  .sub { color: var(--muted); margin-bottom: 24px; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(4, 1fr); margin-bottom: 24px; }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .stat .num { font-size: 28px; font-weight: 600; }
+  .stat .lbl { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+  .charts { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; margin-bottom: 24px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .panel h2 { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
+  canvas { max-height: 280px; }
+  .block-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 24px; }
+  .block-grid canvas { max-height: 180px; }
+  .block-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .block-title .stats { color: var(--muted); font-weight: 400; margin-left: 8px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-bottom: 16px;
+            background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; }
+  .legend .item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .legend .swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+  .legend .key { font-weight: 600; color: var(--ink); }
+  .legend .name { color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; cursor: pointer; user-select: none; }
+  th:hover { color: var(--ink); }
+  th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .cell { display: inline-block; min-width: 36px; padding: 2px 6px; border-radius: 4px; text-align: center; font-weight: 600; }
+  .small { color: var(--muted); font-size: 12px; }
+  .nottaken { color: var(--muted); margin-top: 8px; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1 id="pageTitle"></h1>
+<div class="sub">Per-student percentage scores across exam blocks.</div>
+
+<div class="grid">
+  <div class="stat"><div class="lbl">Students</div><div class="num" id="s_count"></div></div>
+  <div class="stat"><div class="lbl">Avg total</div><div class="num" id="s_avg"></div></div>
+  <div class="stat"><div class="lbl">Median total</div><div class="num" id="s_med"></div></div>
+  <div class="stat"><div class="lbl">% Passed (≥70)</div><div class="num" id="s_pass"></div></div>
+</div>
+
+<div class="legend" id="legend"></div>
+
+<div class="charts">
+  <div class="panel"><h2>Class average per block (%)</h2><canvas id="blockAvg"></canvas></div>
+  <div class="panel"><h2>Total score distribution</h2><canvas id="totalHist"></canvas></div>
+</div>
+
+<div class="panel" style="margin-bottom:16px">
+  <h2>Score distribution per block <span class="small">— each panel is one block; bar height = number of students in that score range</span></h2>
+  <div class="block-grid"></div>
+</div>
+
+<div class="panel">
+  <h2>Per-student scores <span class="small">(click headers to sort, color = score)</span></h2>
+  <table id="grid">
+    <thead><tr id="gridHead"></tr></thead>
+    <tbody></tbody>
+  </table>
+  <div class="nottaken" id="notTaken"></div>
+</div>
+
+<script>
+const D = {"title": "Digital Literacy", "rows": [{"name": "Demian Munoz Vasquez", "blocks": [73, 53, 60, 53], "total": 60}, {"name": "Manuel Lorenzo Rodriguez", "blocks": [60, 67, 73, 73], "total": 68}, {"name": "Andrew Olivera", "blocks": [73, 47, 47, 67], "total": 58}, {"name": "Smarlin Paredes", "blocks": [60, 53, 73, 60], "total": 62}, {"name": "Joel Guthrie", "blocks": [67, 33, 53, 53], "total": 52}, {"name": "Anthony Guevara", "blocks": [53, 53, 47, 67], "total": 55}, {"name": "Maryalis Mercedes", "blocks": [47, 27, 40, 53], "total": 42}, {"name": "Ailanee Cuello", "blocks": [47, 60, 20, 53], "total": 45}, {"name": "Cameryn Robinson", "blocks": [87, 53, 87, 73], "total": 75}, {"name": "Ady Licona", "blocks": [73, 53, 67, 80], "total": 68}, {"name": "Kevin Cruz", "blocks": [67, 67, 87, 93], "total": 78}, {"name": "Jadenson Lopez", "blocks": [40, 20, 60, 60], "total": 45}], "notTaken": ["Raify Hurtado", "Shawn Morales", "Samira Gaston"], "blockLabels": ["Digital Awareness", "Using Computer Mobile Devices", "Creating Communicating Collaborating", "Safety Security"], "blockAverages": [62.2, 48.8, 59.5, 65.4], "blockMedians": [63.5, 53.0, 60.0, 63.5], "totalAvg": 59, "totalMedian": 59.0, "totalCount": 12, "binLabels": ["0-9", "10-19", "20-29", "30-39", "40-49", "50-59", "60-69", "70-79", "80-89", "90-100"], "totalHist": [0, 0, 0, 0, 3, 3, 4, 2, 0, 0], "blockHists": [[0, 0, 0, 0, 3, 1, 4, 3, 1, 0], [0, 0, 2, 1, 1, 5, 3, 0, 0, 0], [0, 0, 1, 0, 3, 1, 3, 2, 2, 0], [0, 0, 0, 0, 0, 4, 4, 2, 1, 1]]};
+document.title = D.title + " — Class Performance";
+document.getElementById("pageTitle").textContent = D.title;
+
+const passed = D.rows.filter(r => r.total >= 70).length;
+document.getElementById("s_count").textContent = D.totalCount;
+document.getElementById("s_avg").textContent = D.totalAvg + "%";
+document.getElementById("s_med").textContent = D.totalMedian + "%";
+document.getElementById("s_pass").textContent = D.totalCount ? Math.round(100 * passed / D.totalCount) + "%" : "0%";
+
+if (D.notTaken.length) {
+  document.getElementById("notTaken").textContent =
+    "Did not take: " + D.notTaken.join(", ");
+}
+
+const tickColor = "#94a3b8";
+const gridColor = "#33415555";
+Chart.defaults.color = tickColor;
+Chart.defaults.borderColor = gridColor;
+
+const palette = ["#38bdf8","#a78bfa","#f472b6","#fb923c","#22c55e","#eab308"];
+const shortLabels = D.blockLabels.map((_, i) => `B${i + 1}`);
+
+// Build the legend strip (B1 → full name, B2 → full name, …)
+document.getElementById("legend").innerHTML =
+  D.blockLabels.map((label, i) =>
+    `<div class="item"><span class="swatch" style="background:${palette[i % palette.length]}"></span>` +
+    `<span class="key">B${i + 1}</span><span class="name">${label}</span></div>`
+  ).join("");
+
+new Chart(document.getElementById("blockAvg"), {
+  type: "bar",
+  data: {
+    labels: [...shortLabels, "Total"],
+    datasets: [{
+      label: "Average %",
+      data: [...D.blockAverages, D.totalAvg],
+      backgroundColor: [...D.blockLabels.map((_, i) => palette[i % palette.length]), "#22c55e"],
+    }]
+  },
+  options: {
+    scales: { y: { beginAtZero: true, max: 100 } },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          title: (items) => {
+            const i = items[0].dataIndex;
+            return i < D.blockLabels.length ? `B${i+1}: ${D.blockLabels[i]}` : "Total";
+          }
+        }
+      }
+    }
+  }
+});
+
+new Chart(document.getElementById("totalHist"), {
+  type: "bar",
+  data: {
+    labels: D.binLabels,
+    datasets: [{ label: "Students", data: D.totalHist, backgroundColor: "#38bdf8" }]
+  },
+  options: { scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false } } }
+});
+
+// Build the 4 (or N) small histograms
+const blockGrid = document.querySelector(".block-grid");
+blockGrid.innerHTML = D.blockLabels.map((label, i) =>
+  `<div><div class="block-title" id="bt${i}"></div><canvas id="blockHist${i}"></canvas></div>`
+).join("");
+
+D.blockLabels.forEach((label, i) => {
+  document.getElementById("bt" + i).innerHTML =
+    `<span class="key">B${i + 1}</span> · ${label} <span class="stats">avg ${D.blockAverages[i]}% · median ${D.blockMedians[i]}%</span>`;
+  new Chart(document.getElementById("blockHist" + i), {
+    type: "bar",
+    data: {
+      labels: D.binLabels,
+      datasets: [{ label: "Students", data: D.blockHists[i], backgroundColor: palette[i % palette.length] }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0 } },
+        x: { ticks: { maxRotation: 0, autoSkip: false, font: { size: 10 } } }
+      }
+    }
+  });
+});
+
+function colorFor(v) {
+  if (v == null) return "#475569";
+  if (v >= 70) return "#22c55e";
+  if (v >= 50) return "#eab308";
+  if (v >= 30) return "#f97316";
+  return "#ef4444";
+}
+
+// Build table headers dynamically (compact "B1..Bn" with full name on hover)
+const head = document.getElementById("gridHead");
+head.innerHTML = `<th data-key="name">Name</th>` +
+  D.blockLabels.map((label, i) =>
+    `<th class="num" data-key="b${i}" title="${label}">B${i + 1}</th>`
+  ).join("") +
+  `<th class="num" data-key="total">Total</th>`;
+
+let sortKey = "total", sortDir = -1;
+function getVal(r, k) {
+  if (k === "name") return r.name;
+  if (k === "total") return r.total;
+  if (k.startsWith("b")) return r.blocks[parseInt(k.slice(1))];
+  return null;
+}
+function render() {
+  const tbody = document.querySelector("#grid tbody");
+  const sorted = [...D.rows].sort((a, b) => {
+    const av = getVal(a, sortKey), bv = getVal(b, sortKey);
+    if (typeof av === "string") return av.localeCompare(bv) * sortDir;
+    return ((av ?? -1) - (bv ?? -1)) * sortDir;
+  });
+  const cell = v => v == null ? `<span class="cell" style="background:#475569">—</span>`
+                              : `<span class="cell" style="background:${colorFor(v)};color:#0f172a">${v}</span>`;
+  tbody.innerHTML = sorted.map(r =>
+    `<tr><td>${r.name}</td>` +
+    r.blocks.map(v => `<td class="num">${cell(v)}</td>`).join("") +
+    `<td class="num">${cell(r.total)}</td></tr>`
+  ).join("");
+}
+document.querySelectorAll("#grid th").forEach(th => {
+  th.addEventListener("click", () => {
+    const k = th.dataset.key;
+    sortDir = (sortKey === k) ? -sortDir : (k === "name" ? 1 : -1);
+    sortKey = k;
+    render();
+  });
+});
+render();
+</script>
+</body>
+</html>
